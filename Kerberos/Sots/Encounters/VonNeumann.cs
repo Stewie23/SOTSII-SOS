@@ -587,102 +587,108 @@ namespace Kerberos.Sots.Encounters
 			}
 		}
 
-		public void SendCollector(GameSession game, ref VonNeumannInfo vi, bool forceHomeworldAttack = false)
-		{
-			List<FleetInfo> list = game.GameDatabase.GetFleetInfosByPlayerID(this.PlayerId, FleetType.FL_NORMAL).ToList<FleetInfo>();
-			VonNeumannGlobalData globalVonNeumannData = game.AssetDatabase.GlobalVonNeumannData;
-			FleetInfo fleetInfo = VonNeumann.GetCollectorFleetInfo(list);
-			if (fleetInfo == null)
-			{
-				DesignInfo designInfo = game.GameDatabase.GetDesignInfo(VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId);
-				if ((double)vi.Resources > (double)designInfo.ProductionCost / (double)game.AssetDatabase.DefaultStratModifiers[StratModifiers.OverharvestModifier])
-				{
-					vi.Resources -= (int)((double)designInfo.ProductionCost / (double)game.AssetDatabase.DefaultStratModifiers[StratModifiers.OverharvestModifier]);
-					vi.FleetId = new int?(game.GameDatabase.InsertFleet(this.PlayerId, 0, vi.SystemId, vi.SystemId, "Von Neumann Collector", FleetType.FL_NORMAL));
-					game.GameDatabase.InsertShip(vi.FleetId.Value, VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId, null, (ShipParams)0, new int?(), 0);
-					fleetInfo = game.GameDatabase.GetFleetInfo(vi.FleetId.Value);
-				}
-				else
-				{
-					vi.Resources = 0;
-					vi.FleetId = new int?(game.GameDatabase.InsertFleet(this.PlayerId, 0, vi.SystemId, vi.SystemId, "Von Neumann Collector", FleetType.FL_NORMAL));
-					game.GameDatabase.InsertShip(vi.FleetId.Value, VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId, null, (ShipParams)0, new int?(), 0);
-					fleetInfo = game.GameDatabase.GetFleetInfo(vi.FleetId.Value);
-				}
-				int sysId = vi.LastCollectionSystem;
-				if (!vi.TargetInfos.Any<VonNeumannTargetInfo>((Func<VonNeumannTargetInfo, bool>)(x => x.SystemId == sysId)) && sysId != 0)
-					vi.TargetInfos.Add(new VonNeumannTargetInfo()
-					{
-						SystemId = sysId,
-						ThreatLevel = 1
-					});
-			}
-			else if (vi.LastCollectionSystem != 0)
-			{
-				foreach (int num1 in game.GameDatabase.GetStarSystemOrbitalObjectIDs(fleetInfo.SystemID).ToList<int>())
-				{
-					PlanetInfo planetInfo = game.GameDatabase.GetPlanetInfo(num1);
-					LargeAsteroidInfo largeAsteroidInfo = game.GameDatabase.GetLargeAsteroidInfo(num1);
-					int num2 = globalVonNeumannData.SalvageCapacity - vi.ResourcesCollectedLastTurn;
-					if (planetInfo != null)
-					{
-						if (planetInfo.Resources > num2)
-						{
-							planetInfo.Resources -= num2;
-							vi.ResourcesCollectedLastTurn = globalVonNeumannData.SalvageCapacity;
-							break;
-						}
-						vi.ResourcesCollectedLastTurn += planetInfo.Resources;
-						planetInfo.Resources = 0;
-						game.GameDatabase.UpdatePlanet(planetInfo);
-					}
-					else if (largeAsteroidInfo != null)
-					{
-						if (largeAsteroidInfo.Resources > num2)
-						{
-							largeAsteroidInfo.Resources -= num2;
-							vi.ResourcesCollectedLastTurn = globalVonNeumannData.SalvageCapacity;
-							break;
-						}
-						vi.ResourcesCollectedLastTurn += largeAsteroidInfo.Resources;
-						largeAsteroidInfo.Resources = 0;
-						game.GameDatabase.UpdateLargeAsteroidInfo(largeAsteroidInfo);
-					}
-				}
-				vi.Resources += vi.ResourcesCollectedLastTurn;
-				fleetInfo.SystemID = vi.SystemId;
-				game.GameDatabase.UpdateFleetLocation(fleetInfo.ID, fleetInfo.SystemID, new int?());
-			}
-			vi.LastCollectionSystem = 0;
-			int turnCount = game.GameDatabase.GetTurnCount();
-			if (fleetInfo == null || turnCount <= vi.LastCollectionTurn + globalVonNeumannData.SalvageCycle && !forceHomeworldAttack && !this.ForceVonNeumannAttackCycle)
-				return;
-			vi.LastCollectionTurn = turnCount;
-			List<int> intList = new List<int>();
-			foreach (int num in game.GameDatabase.GetStarSystemIDs().ToList<int>())
-			{
-				int system = num;
-				if (!vi.TargetInfos.Any<VonNeumannTargetInfo>((Func<VonNeumannTargetInfo, bool>)(x => x.SystemId == system)))
-				{
-					int? systemOwningPlayer = game.GameDatabase.GetSystemOwningPlayer(system);
-					if (systemOwningPlayer.HasValue)
-					{
-						Player playerObject = game.GetPlayerObject(systemOwningPlayer.Value);
-						if (playerObject == null || playerObject.IsAI())
-							continue;
-					}
-					intList.Add(system);
-				}
-			}
-			if (intList.Count <= 0)
-				return;
-			fleetInfo.SystemID = forceHomeworldAttack || this.ForceVonNeumannAttackCycle ? game.GameDatabase.GetOrbitalObjectInfo(game.GameDatabase.GetPlayerInfo(game.LocalPlayer.ID).Homeworld.Value).StarSystemID : intList[App.GetSafeRandom().Next(intList.Count)];
-			vi.FleetId = new int?(fleetInfo.ID);
-			vi.LastCollectionSystem = fleetInfo.SystemID;
-			game.GameDatabase.UpdateFleetLocation(fleetInfo.ID, fleetInfo.SystemID, new int?());
-		}
+        public void SendCollector(GameSession game, ref VonNeumannInfo vi, bool forceHomeworldAttack = false)
+        {
 
-		public void HandleHomeSystemDefeated(App app, FleetInfo fi, List<int> attackingPlayers)
+            List<FleetInfo> list = game.GameDatabase.GetFleetInfosByPlayerID(this.PlayerId, FleetType.FL_NORMAL).ToList<FleetInfo>();
+            VonNeumannGlobalData globalVonNeumannData = game.AssetDatabase.GlobalVonNeumannData;
+            FleetInfo fleetInfo = VonNeumann.GetCollectorFleetInfo(list);
+
+            if (fleetInfo == null)
+            {
+
+                DesignInfo designInfo = game.GameDatabase.GetDesignInfo(VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId);
+                ///changed from (double) to Convert.ToDouble(...) to avoid crash since OverharvestModifier is Float
+                if (Convert.ToDouble(vi.Resources) > Convert.ToDouble(designInfo.ProductionCost) / Convert.ToDouble(game.AssetDatabase.DefaultStratModifiers[StratModifiers.OverharvestModifier]))
+                {
+
+                    vi.Resources -= (int)(Convert.ToDouble(designInfo.ProductionCost) / Convert.ToDouble(game.AssetDatabase.DefaultStratModifiers[StratModifiers.OverharvestModifier]));
+                    vi.FleetId = new int?(game.GameDatabase.InsertFleet(this.PlayerId, 0, vi.SystemId, vi.SystemId, "Von Neumann Collector", FleetType.FL_NORMAL));
+                    game.GameDatabase.InsertShip(vi.FleetId.Value, VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId, null, (ShipParams)0, new int?(), 0);
+                    fleetInfo = game.GameDatabase.GetFleetInfo(vi.FleetId.Value);
+                }
+                else
+                {
+
+                    vi.Resources = 0;
+                    vi.FleetId = new int?(game.GameDatabase.InsertFleet(this.PlayerId, 0, vi.SystemId, vi.SystemId, "Von Neumann Collector", FleetType.FL_NORMAL));
+                    game.GameDatabase.InsertShip(vi.FleetId.Value, VonNeumann.StaticShipDesigns[VonNeumann.VonNeumannShipDesigns.CollectorMothership].DesignId, null, (ShipParams)0, new int?(), 0);
+                    fleetInfo = game.GameDatabase.GetFleetInfo(vi.FleetId.Value);
+                }
+                int sysId = vi.LastCollectionSystem;
+                if (!vi.TargetInfos.Any<VonNeumannTargetInfo>((Func<VonNeumannTargetInfo, bool>)(x => x.SystemId == sysId)) && sysId != 0)
+                    vi.TargetInfos.Add(new VonNeumannTargetInfo()
+                    {
+                        SystemId = sysId,
+                        ThreatLevel = 1
+                    });
+            }
+            else if (vi.LastCollectionSystem != 0)
+            {
+                foreach (int num1 in game.GameDatabase.GetStarSystemOrbitalObjectIDs(fleetInfo.SystemID).ToList<int>())
+                {
+                    PlanetInfo planetInfo = game.GameDatabase.GetPlanetInfo(num1);
+                    LargeAsteroidInfo largeAsteroidInfo = game.GameDatabase.GetLargeAsteroidInfo(num1);
+                    int num2 = globalVonNeumannData.SalvageCapacity - vi.ResourcesCollectedLastTurn;
+                    if (planetInfo != null)
+                    {
+                        if (planetInfo.Resources > num2)
+                        {
+                            planetInfo.Resources -= num2;
+                            vi.ResourcesCollectedLastTurn = globalVonNeumannData.SalvageCapacity;
+                            break;
+                        }
+                        vi.ResourcesCollectedLastTurn += planetInfo.Resources;
+                        planetInfo.Resources = 0;
+                        game.GameDatabase.UpdatePlanet(planetInfo);
+                    }
+                    else if (largeAsteroidInfo != null)
+                    {
+                        if (largeAsteroidInfo.Resources > num2)
+                        {
+                            largeAsteroidInfo.Resources -= num2;
+                            vi.ResourcesCollectedLastTurn = globalVonNeumannData.SalvageCapacity;
+                            break;
+                        }
+                        vi.ResourcesCollectedLastTurn += largeAsteroidInfo.Resources;
+                        largeAsteroidInfo.Resources = 0;
+                        game.GameDatabase.UpdateLargeAsteroidInfo(largeAsteroidInfo);
+                    }
+                }
+                vi.Resources += vi.ResourcesCollectedLastTurn;
+                fleetInfo.SystemID = vi.SystemId;
+                game.GameDatabase.UpdateFleetLocation(fleetInfo.ID, fleetInfo.SystemID, new int?());
+            }
+            vi.LastCollectionSystem = 0;
+            int turnCount = game.GameDatabase.GetTurnCount();
+            if (fleetInfo == null || turnCount <= vi.LastCollectionTurn + globalVonNeumannData.SalvageCycle && !forceHomeworldAttack && !this.ForceVonNeumannAttackCycle)
+                return;
+            vi.LastCollectionTurn = turnCount;
+            List<int> intList = new List<int>();
+            foreach (int num in game.GameDatabase.GetStarSystemIDs().ToList<int>())
+            {
+                int system = num;
+                if (!vi.TargetInfos.Any<VonNeumannTargetInfo>((Func<VonNeumannTargetInfo, bool>)(x => x.SystemId == system)))
+                {
+                    int? systemOwningPlayer = game.GameDatabase.GetSystemOwningPlayer(system);
+                    if (systemOwningPlayer.HasValue)
+                    {
+                        Player playerObject = game.GetPlayerObject(systemOwningPlayer.Value);
+                        if (playerObject == null || playerObject.IsAI())
+                            continue;
+                    }
+                    intList.Add(system);
+                }
+            }
+            if (intList.Count <= 0)
+                return;
+            fleetInfo.SystemID = forceHomeworldAttack || this.ForceVonNeumannAttackCycle ? game.GameDatabase.GetOrbitalObjectInfo(game.GameDatabase.GetPlayerInfo(game.LocalPlayer.ID).Homeworld.Value).StarSystemID : intList[App.GetSafeRandom().Next(intList.Count)];
+            vi.FleetId = new int?(fleetInfo.ID);
+            vi.LastCollectionSystem = fleetInfo.SystemID;
+            game.GameDatabase.UpdateFleetLocation(fleetInfo.ID, fleetInfo.SystemID, new int?());
+        }
+
+        public void HandleHomeSystemDefeated(App app, FleetInfo fi, List<int> attackingPlayers)
 		{
 			VonNeumannInfo vonNeumannInfo = app.Game.GameDatabase.GetVonNeumannInfos().FirstOrDefault<VonNeumannInfo>((Func<VonNeumannInfo, bool>)(x =>
 		   {

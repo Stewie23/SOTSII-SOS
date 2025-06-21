@@ -1,4 +1,4 @@
-﻿// Decompiled with JetBrains decompiler
+// Decompiled with JetBrains decompiler
 // Type: Kerberos.Sots.UI.PlanetWidget
 // Assembly: sots2_managed, Version=2.0.25104.1, Culture=neutral, PublicKeyToken=null
 // MVID: 7BEBB796-D765-47D7-AFD1-D31EAC2170CD
@@ -215,33 +215,64 @@ namespace Kerberos.Sots.UI
 			}
 		}
 
-		public static void UpdateTradeSliderNotchInfo(App App, int ColonyID, int value)
-		{
-			ColonyInfo colonyInfo = App.GameDatabase.GetColonyInfo(ColonyID);
-			if (value == -1)
-			{
-				// Zerk: faster to just run delete query
-				//if (App.GameDatabase.GetSliderNotchSettingInfoForColony(colonyInfo.PlayerID, colonyInfo.ID, UISlidertype.TradeSlider) == null)
-					//return;
-				App.GameDatabase.DeleteUISliderNotchSettingForColony(colonyInfo.PlayerID, colonyInfo.ID, UISlidertype.TradeSlider);
-			}
-			else
-			{
-				List<double> exportsForColony = App.Game.GetTradeRatesForWholeExportsForColony(colonyInfo.ID);
-				UISliderNotchInfo settingInfoForColony = App.GameDatabase.GetSliderNotchSettingInfoForColony(colonyInfo.PlayerID, colonyInfo.ID, UISlidertype.TradeSlider);
-				//App.Log.Trace(string.Format("Trade slider notched: Colony: {0}, Value: {1}, Notch: {2}", App.GameDatabase.GetColonyName(colonyInfo.OrbitalObjectID), value, exportsForColony.IndexOf(exportsForColony.FirstOrDefault(v => (int)Math.Ceiling(v * 100.0) == value))), "zerk");
-				double num = exportsForColony.First(v => (int)Math.Ceiling(v * 100.0) == value);
-				if (settingInfoForColony != null)
-				{
-					settingInfoForColony.SliderValue = (double)exportsForColony.IndexOf(num);
-					App.GameDatabase.UpdateUISliderNotchSetting(settingInfoForColony);
-					return;
-				}
-				App.GameDatabase.InsertUISliderNotchSetting(App.LocalPlayer.ID, UISlidertype.TradeSlider, (double)exportsForColony.IndexOf(num), colonyInfo.ID);
-			}
-		}
+        public static void UpdateTradeSliderNotchInfo(App App, int ColonyID, int value)
+        {
+            ColonyInfo colonyInfo = App.GameDatabase.GetColonyInfo(ColonyID);
 
-		public void Terminate()
+            if (value == -1)
+            {
+                App.GameDatabase.DeleteUISliderNotchSettingForColony(colonyInfo.PlayerID, colonyInfo.ID, UISlidertype.TradeSlider);
+                App.Log.Trace($"Trade slider notch deleted for colony {colonyInfo.ID} ({App.GameDatabase.GetColonyName(colonyInfo.OrbitalObjectID)}).", "Stewie");
+                return;
+            }
+
+            List<double> exportsForColony;
+            try
+            {
+                exportsForColony = App.Game.GetTradeRatesForWholeExportsForColony(colonyInfo.ID);
+            }
+            catch (Exception ex)
+            {
+                App.Log.Trace($"Exception getting export rates for colony {colonyInfo.ID}: {ex.Message}", "Stewie");
+                return;
+            }
+
+            if (exportsForColony == null || exportsForColony.Count == 0)
+            {
+                App.Log.Warn($"No export rates found for colony {colonyInfo.ID} ({App.GameDatabase.GetColonyName(colonyInfo.OrbitalObjectID)}).", "Stewie");
+                return;
+            }
+
+            // Map slider value (0–100) to export index
+            int index = (int)Math.Round((value / 100.0) * (exportsForColony.Count - 1));
+            index = Math.Max(0, Math.Min(index, exportsForColony.Count - 1));
+            double exportRate = exportsForColony[index];
+
+            UISliderNotchInfo settingInfoForColony = App.GameDatabase.GetSliderNotchSettingInfoForColony(
+                colonyInfo.PlayerID, colonyInfo.ID, UISlidertype.TradeSlider);
+
+            if (settingInfoForColony != null)
+            {
+                settingInfoForColony.SliderValue = index;
+                App.GameDatabase.UpdateUISliderNotchSetting(settingInfoForColony);
+            }
+            else
+            {
+                App.GameDatabase.InsertUISliderNotchSetting(App.LocalPlayer.ID, UISlidertype.TradeSlider, index, colonyInfo.ID);
+            }
+
+            // Final log trace
+            App.Log.Trace(string.Format(
+                "Trade slider notched: Colony: {0} (ID {1}), UI Value: {2}, Export Index: {3}, Export Rate: {4:F6}",
+                App.GameDatabase.GetColonyName(colonyInfo.OrbitalObjectID),
+                colonyInfo.ID,
+                value,
+                index,
+                exportRate), "Stewie");
+        }
+
+
+        public void Terminate()
 		{
 			if (this._cachedPlanet != null)
 			{
